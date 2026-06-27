@@ -483,6 +483,13 @@ function renderFix(){
    ============================================================ */
 let MAP={cx:-20.25,cy:148.92,zoom:1,fitted:false};
 const BASE_SPAN=0.55; // deg longitude visible at zoom 1
+/* ---- Web-Mercator tile helpers (optional cached chart layer) ---- */
+const TILE_HOSTS={base:'https://tile.openstreetmap.org',sea:'https://tiles.openseamap.org/seamark'};
+function tileZoom(lonSpan,vw){ return Math.max(9,Math.min(16,Math.round(Math.log2(360*vw/(256*lonSpan))))); }
+function lonToTileX(lon,z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
+function latToTileY(lat,z){ const r=lat*Math.PI/180; return Math.floor((1-Math.asinh(Math.tan(r))/Math.PI)/2*Math.pow(2,z)); }
+function tileXToLon(x,z){ return x/Math.pow(2,z)*360-180; }
+function tileYToLat(y,z){ return Math.atan(Math.sinh(Math.PI*(1-2*y/Math.pow(2,z))))*180/Math.PI; }
 function project(lat,lon,vw,vh){
   const midLat=MAP.cx, kx=Math.cos(midLat*Math.PI/180);
   const lonSpan=BASE_SPAN/MAP.zoom, latSpan=lonSpan*(vh/vw)/kx;
