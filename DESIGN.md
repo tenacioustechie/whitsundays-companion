@@ -45,6 +45,13 @@ authoritative and invite someone to trust it for navigation. Since the boat has 
 the app's job is relative geometry ("that spot is 3.2 nm at 145°"), not cartography. Rendering
 is hand-rolled SVG with custom pan/zoom/pinch so it needs no mapping library.
 
+An *optional* cached chart layer can sit behind the schematic: a dimmed OpenStreetMap base
+plus the OpenSeaMap seamark overlay, fetched and cached-as-you-browse while online (no bulk
+download — coverage is wherever you panned). It is deliberately framed as *context only* —
+dimmed, captioned "not for navigation", and never the source of truth. The boat's plotter
+still is. The layer is a per-device toggle (default on) and degrades to the pure schematic
+wherever tiles aren't cached.
+
 ### 4. Tides: two paths, because signal is exactly where you won't have it
 - **Pre-fetch at the marina** (`fetchTides`): while still on wifi, pull the whole trip's
   highs/lows + hourly heights from the WorldTides API (free tier; a 7-day fetch ≈ 1 credit),

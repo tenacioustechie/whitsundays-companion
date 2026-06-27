@@ -17,7 +17,9 @@ It runs on family phones/iPads with **no mobile signal** out among the islands.
    packages loaded at runtime, no build step. The app must load and run from a cold cache
    with the network completely off. If you're tempted to add a library, inline it or don't.
 2. **Stay offline-capable.** The only network calls allowed are the optional WorldTides
-   fetch (explicitly user-triggered) and the service worker's background cache refresh.
+   fetch (explicitly user-triggered), the optional chart-layer map tiles (OSM base +
+   OpenSeaMap seamarks, cached-as-you-browse for offline use), and the service worker's
+   background cache refresh.
    Every feature must work fully offline. If a feature needs data, it gets pre-fetched while
    online or entered manually.
 3. **Never present coordinates as navigation-grade.** Spot positions are approximate. Keep
