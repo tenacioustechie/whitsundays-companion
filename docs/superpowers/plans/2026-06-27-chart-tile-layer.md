@@ -166,7 +166,7 @@ In `#mapwrap`, immediately after `<svg id="chart" preserveAspectRatio="xMidYMid 
       for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
         const[xL,yT]=project(tileYToLat(y,z),tileXToLon(x,z),vw,vh);
         const[xR,yB]=project(tileYToLat(y+1,z),tileXToLon(x+1,z),vw,vh);
-        const a=`x="${xL.toFixed(1)}" y="${yT.toFixed(1)}" width="${(xR-xL+1).toFixed(1)}" height="${(yB-yT+1).toFixed(1)}" pointer-events="none"`;
+        const a=`x="${xL.toFixed(1)}" y="${yT.toFixed(1)}" width="${(xR-xL+1).toFixed(1)}" height="${(yB-yT+1).toFixed(1)}" preserveAspectRatio="none" pointer-events="none"`;
         base+=`<image ${a} href="${TILE_HOSTS.base}/${z}/${x}/${y}.png"/>`;
         sea +=`<image ${a} href="${TILE_HOSTS.sea}/${z}/${x}/${y}.png"/>`;
       }
