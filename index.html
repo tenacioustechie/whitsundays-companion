@@ -97,6 +97,7 @@
   #maptools{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:7px;z-index:5}
   .mtbtn{width:42px;height:42px;border-radius:11px;background:rgba(17,33,47,.88);border:1px solid var(--line);
     color:var(--cyan);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+  .mtbtn.on{background:var(--cyan);color:#04222a;border-color:var(--cyan)}
   #mapsheet{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(#13283a,#0e2031);
     border-top:1px solid var(--line);border-radius:18px 18px 0 0;transform:translateY(101%);
     transition:transform .26s cubic-bezier(.3,.7,.3,1);z-index:6;max-height:74%;overflow-y:auto;
@@ -216,6 +217,7 @@
         <button class="mtbtn" id="mt-zin">+</button>
         <button class="mtbtn" id="mt-zout">−</button>
         <button class="mtbtn" id="mt-fit" style="font-size:13px">FIT</button>
+        <button class="mtbtn" id="mt-layer" title="Chart layer on/off"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 12 15 2 8.5 12 2"/><polyline points="2 15.5 12 22 22 15.5"/></svg></button>
       </div>
       <div id="mapsheet">
         <div class="sheethandle"></div>
@@ -1112,6 +1114,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('mt-zin').addEventListener('click',()=>{MAP.zoom=Math.min(9,MAP.zoom*1.4);drawChart();});
   document.getElementById('mt-zout').addEventListener('click',()=>{MAP.zoom=Math.max(0.6,MAP.zoom/1.4);drawChart();});
   document.getElementById('mt-fit').addEventListener('click',fitChart);
+  const layerBtn=document.getElementById('mt-layer');
+  layerBtn.classList.toggle('on',S.chartLayer);
+  layerBtn.addEventListener('click',()=>{
+    S.chartLayer=!S.chartLayer; store.set('chartLayer',S.chartLayer);
+    layerBtn.classList.toggle('on',S.chartLayer); drawChart();
+  });
   // sheet handle to close
   document.querySelector('.sheethandle').addEventListener('click',closeSheet);
   renderFix();
