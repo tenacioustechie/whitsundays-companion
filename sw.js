@@ -10,7 +10,9 @@
  * Bump CACHE (e.g. wts-v2) whenever you want to force every device to discard
  * the old cached copy on next online launch.
  */
-const CACHE = 'wts-v1';
+const CACHE = 'wts-v2';
+const TILES = 'wts-tiles';                       // chart-layer tiles, kept across shell upgrades
+const TILE_HOSTS = ['tile.openstreetmap.org', 'tiles.openseamap.org'];
 
 // App shell — relative paths so this works under any GitHub Pages subpath
 // (e.g. https://you.github.io/whitsundays-companion/).
@@ -34,7 +36,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== TILES).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -44,6 +46,25 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
+
+  // Chart-layer tiles: cache-first into a dedicated cache (cache-as-you-browse).
+  if (TILE_HOSTS.includes(url.hostname)) {
+    e.respondWith(
+      caches.open(TILES).then((c) =>
+        c.match(req).then((hit) =>
+          hit || fetch(req)
+            .then((res) => {
+              // tiles are no-cors (opaque) or cors; cache either when we got bytes
+              if (res && (res.ok || res.type === 'opaque')) c.put(req, res.clone());
+              return res;
+            })
+            .catch(() => hit)              // offline + uncached -> let the <image> render nothing
+        )
+      )
+    );
+    return;
+  }
+
   // Only manage our own origin. Tide API + anything cross-origin: don't touch.
   if (url.origin !== self.location.origin) return;
 
