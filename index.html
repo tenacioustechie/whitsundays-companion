@@ -211,7 +211,7 @@
   <div class="view" id="view-map">
     <div id="mapwrap">
       <svg id="chart" preserveAspectRatio="xMidYMid meet"></svg>
-      <div id="chartcap">© OpenStreetMap · OpenSeaMap — context only, not for navigation</div>
+      <div id="chartcap">© OpenStreetMap contributors · OpenSeaMap — context only, not for navigation</div>
       <div id="maptools">
         <button class="mtbtn" id="mt-center" title="Center on me">⌖</button>
         <button class="mtbtn" id="mt-zin">+</button>
@@ -466,7 +466,7 @@ function simPos(){
   S.pos={lat:-20.288,lon:148.787,acc:25,spd:null,hdg:null,ts:Date.now()};
   S.live=false;S.sim=true;store.set('pos',S.pos);onPos();toast('Demo position set at Shute Harbour');
 }
-function onPos(){ renderFix(); if(S.view==='near')renderNear(); if(S.view==='map')drawChart(); if(S.view==='plan')renderPlan(); if(S.selected)renderSheet(); }
+function onPos(){ renderFix(); if(S.view==='near')renderNear(); if(S.view==='map')scheduleDraw(); if(S.view==='plan')renderPlan(); if(S.selected)renderSheet(); }
 
 function renderFix(){
   const dot=document.getElementById('fixdot');
@@ -492,7 +492,7 @@ function renderFix(){
 let MAP={cx:-20.25,cy:148.92,zoom:1,fitted:false};
 const BASE_SPAN=0.55; // deg longitude visible at zoom 1
 /* ---- Web-Mercator tile helpers (optional cached chart layer) ---- */
-const TILE_HOSTS={base:'https://tile.openstreetmap.org',sea:'https://tiles.openseamap.org/seamark'};
+const TILE_HOSTS={base:'https://tile.openstreetmap.org',sea:'https://tiles.openseamap.org/seamark'}; // hosts must stay in sync with TILE_HOSTS in sw.js
 function tileZoom(lonSpan,vw){ return Math.max(9,Math.min(16,Math.round(Math.log2(360*vw/(256*lonSpan))))); }
 function lonToTileX(lon,z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
 function latToTileY(lat,z){ const r=lat*Math.PI/180; return Math.floor((1-Math.asinh(Math.tan(r))/Math.PI)/2*Math.pow(2,z)); }
@@ -529,25 +529,27 @@ function drawChart(){
   }
   const latSpan=lonSpan*(vh/vw)/kx;
   /* ---- cached chart tile layer (drawn first, behind the schematic) ---- */
-  const cap=document.getElementById('chartcap'); if(cap)cap.style.display=S.chartLayer?'block':'none';
   if(S.chartLayer){
-    const z=tileZoom(lonSpan,vw);
+    const z=tileZoom(lonSpan,vw), n=Math.pow(2,z);
     const west=MAP.cy-lonSpan/2, east=MAP.cy+lonSpan/2;
     const north=MAP.cx+latSpan/2, south=MAP.cx-latSpan/2;
     const x0=lonToTileX(west,z), x1=lonToTileX(east,z);
     const y0=latToTileY(north,z), y1=latToTileY(south,z);
-    if((x1-x0+1)*(y1-y0+1)<=64){           // safety guard against pathological ranges
+    if((x1-x0+1)*(y1-y0+1)<=400){          // backstop against a pathological range
       let base='', sea='';
       for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
+        if(x<0||x>=n||y<0||y>=n)continue;  // skip tiles outside the world (off-map panning)
         const[xL,yT]=project(tileYToLat(y,z),tileXToLon(x,z),vw,vh);
         const[xR,yB]=project(tileYToLat(y+1,z),tileXToLon(x+1,z),vw,vh);
-        const a=`x="${xL.toFixed(1)}" y="${yT.toFixed(1)}" width="${(xR-xL+1).toFixed(1)}" height="${(yB-yT+1).toFixed(1)}" preserveAspectRatio="none" pointer-events="none"`;
+        const a=`x="${xL.toFixed(1)}" y="${yT.toFixed(1)}" width="${(xR-xL+1).toFixed(1)}" height="${(yB-yT+1).toFixed(1)}" preserveAspectRatio="none" crossorigin="anonymous" pointer-events="none"`;
         base+=`<image ${a} href="${TILE_HOSTS.base}/${z}/${x}/${y}.png"/>`;
         sea +=`<image ${a} href="${TILE_HOSTS.sea}/${z}/${x}/${y}.png"/>`;
       }
       tiles=`<g class="tilebase">${base}</g><g>${sea}</g>`;
     }
   }
+  /* attribution tracks actual tiles, not just the toggle (stays hidden if the backstop blanks them) */
+  const cap=document.getElementById('chartcap'); if(cap)cap.style.display=tiles?'block':'none';
   const la0=Math.floor((MAP.cx-latSpan)*10)/10;
   for(let la=la0; la<MAP.cx+latSpan; la+=0.1){
     const [,y]=project(la,MAP.cy,vw,vh);
@@ -608,6 +610,10 @@ function drawChart(){
     selectSpot(+ev.target.getAttribute('data-id'));
   }));
 }
+/* coalesce high-frequency redraws (pan/pinch/wheel/GPS) into one per animation frame,
+   so a single gesture doesn't rebuild the SVG — and re-request tiles — dozens of times */
+let _drawRAF=0;
+function scheduleDraw(){ if(_drawRAF)return; _drawRAF=requestAnimationFrame(()=>{_drawRAF=0;drawChart();}); }
 
 /* ---- chart pan/zoom (touch) ---- */
 (function(){
@@ -625,13 +631,13 @@ function drawChart(){
     const svg=document.getElementById('chart'); const r=svg.getBoundingClientRect();
     if(pinch&&e.touches&&e.touches.length===2){
       const nd=dist(e.touches[0],e.touches[1]);
-      MAP.zoom=Math.max(0.6,Math.min(9,pinch.z*nd/pinch.d)); e.preventDefault(); drawChart(); return;
+      MAP.zoom=Math.max(0.6,Math.min(9,pinch.z*nd/pinch.d)); e.preventDefault(); scheduleDraw(); return;
     }
     if(!drag)return;
     const p=pt(e); const kx=Math.cos(MAP.cx*Math.PI/180); const lonSpan=BASE_SPAN/MAP.zoom;
     const dLon=((p.x-drag.x)/r.width)*lonSpan;
     const dLat=((p.y-drag.y)/r.height)*(lonSpan*(r.height/r.width)/kx);
-    MAP.cy=drag.cy-dLon; MAP.cx=drag.cx+dLat; e.preventDefault(); drawChart();
+    MAP.cy=drag.cy-dLon; MAP.cx=drag.cx+dLat; e.preventDefault(); scheduleDraw();
   }
   function up(){drag=null;pinch=null;}
   document.addEventListener('DOMContentLoaded',()=>{
@@ -640,7 +646,7 @@ function drawChart(){
     w.addEventListener('touchmove',move,{passive:false});
     w.addEventListener('touchend',up);
     w.addEventListener('mousedown',down); w.addEventListener('mousemove',e=>{if(drag)move(e);}); w.addEventListener('mouseup',up);
-    w.addEventListener('wheel',e=>{e.preventDefault();MAP.zoom=Math.max(0.6,Math.min(9,MAP.zoom*(e.deltaY<0?1.12:0.9)));drawChart();},{passive:false});
+    w.addEventListener('wheel',e=>{e.preventDefault();MAP.zoom=Math.max(0.6,Math.min(9,MAP.zoom*(e.deltaY<0?1.12:0.9)));scheduleDraw();},{passive:false});
   });
 })();
 

@@ -10,9 +10,10 @@
  * Bump CACHE (e.g. wts-v2) whenever you want to force every device to discard
  * the old cached copy on next online launch.
  */
-const CACHE = 'wts-v2';
+const CACHE = 'wts-v3';
 const TILES = 'wts-tiles';                       // chart-layer tiles, kept across shell upgrades
-const TILE_HOSTS = ['tile.openstreetmap.org', 'tiles.openseamap.org'];
+const TILE_HOSTS = ['tile.openstreetmap.org', 'tiles.openseamap.org']; // keep in sync with TILE_HOSTS in index.html
+const MAX_TILES = 1200;                           // cap the tile cache so it can't crowd out the app shell
 
 // App shell — relative paths so this works under any GitHub Pages subpath
 // (e.g. https://you.github.io/whitsundays-companion/).
@@ -41,6 +42,16 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// Cache a tile, then FIFO-prune so the tile cache can't grow without bound and pressure
+// the browser into evicting the app shell (which would break the offline cold-launch).
+async function cacheTile(cache, req, res) {
+  await cache.put(req, res.clone());
+  const keys = await cache.keys();           // insertion order: oldest first
+  if (keys.length > MAX_TILES) {
+    await Promise.all(keys.slice(0, keys.length - MAX_TILES).map((k) => cache.delete(k)));
+  }
+}
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
@@ -54,8 +65,8 @@ self.addEventListener('fetch', (e) => {
         c.match(req).then((hit) =>
           hit || fetch(req)
             .then((res) => {
-              // tiles are no-cors (opaque) or cors; cache either when we got bytes
-              if (res && (res.ok || res.type === 'opaque')) c.put(req, res.clone());
+              // tiles are fetched with CORS, so cache only genuine 200s (never error/throttle tiles)
+              if (res && res.ok) cacheTile(c, req, res);
               return res;
             })
             .catch(() => hit)              // offline + uncached -> let the <image> render nothing
