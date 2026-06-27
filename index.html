@@ -90,6 +90,10 @@
   #chart{width:100%;height:100%;display:block}
   .mlbl{font-family:var(--sans);font-size:10px;fill:var(--muted2);font-weight:600}
   .ilbl{font-family:var(--sans);font-size:12px;fill:rgba(180,205,225,.32);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .tilebase{filter:brightness(.62) saturate(.6) contrast(.95)}
+  #chartcap{position:absolute;right:10px;bottom:7px;max-width:64%;text-align:right;
+    font-family:var(--sans);font-size:9.5px;line-height:1.25;color:var(--muted2);
+    text-shadow:0 1px 2px rgba(0,0,0,.85);z-index:4;pointer-events:none}
   #maptools{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:7px;z-index:5}
   .mtbtn{width:42px;height:42px;border-radius:11px;background:rgba(17,33,47,.88);border:1px solid var(--line);
     color:var(--cyan);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
@@ -206,6 +210,7 @@
   <div class="view" id="view-map">
     <div id="mapwrap">
       <svg id="chart" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="chartcap">© OpenStreetMap · OpenSeaMap — context only, not for navigation</div>
       <div id="maptools">
         <button class="mtbtn" id="mt-center" title="Center on me">⌖</button>
         <button class="mtbtn" id="mt-zin">+</button>
@@ -425,6 +430,7 @@ const S={
   filt:store.get('filt',{type:'all',fits:false,protOnly:false,showDay:false}),
   selected:null,
   route:store.get('route',[]),
+  chartLayer:store.get('chartLayer',true),  // optional cached map tiles behind the schematic
   tides:store.get('tides',{manual:[],fetched:null,ref:'hamilton',key:store.get('wtkey','')}),
   wtkey:store.get('wtkey','')
 };
@@ -511,7 +517,7 @@ function drawChart(){
   svg.setAttribute('viewBox',`0 0 ${vw} ${vh}`);
   const kx=Math.cos(MAP.cx*Math.PI/180);
   const lonSpan=BASE_SPAN/MAP.zoom;
-  let out='';
+  let out='', tiles='';
   /* lat/lon grid every 0.1deg */
   const g0=Math.floor((MAP.cy-lonSpan)*10)/10;
   for(let lo=g0; lo<MAP.cy+lonSpan; lo+=0.1){
@@ -520,6 +526,26 @@ function drawChart(){
     out+=`<text x="${(x+3).toFixed(1)}" y="13" class="mlbl">${lo.toFixed(1)}°E</text>`;
   }
   const latSpan=lonSpan*(vh/vw)/kx;
+  /* ---- cached chart tile layer (drawn first, behind the schematic) ---- */
+  const cap=document.getElementById('chartcap'); if(cap)cap.style.display=S.chartLayer?'block':'none';
+  if(S.chartLayer){
+    const z=tileZoom(lonSpan,vw);
+    const west=MAP.cy-lonSpan/2, east=MAP.cy+lonSpan/2;
+    const north=MAP.cx+latSpan/2, south=MAP.cx-latSpan/2;
+    const x0=lonToTileX(west,z), x1=lonToTileX(east,z);
+    const y0=latToTileY(north,z), y1=latToTileY(south,z);
+    if((x1-x0+1)*(y1-y0+1)<=64){           // safety guard against pathological ranges
+      let base='', sea='';
+      for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
+        const[xL,yT]=project(tileYToLat(y,z),tileXToLon(x,z),vw,vh);
+        const[xR,yB]=project(tileYToLat(y+1,z),tileXToLon(x+1,z),vw,vh);
+        const a=`x="${xL.toFixed(1)}" y="${yT.toFixed(1)}" width="${(xR-xL+1).toFixed(1)}" height="${(yB-yT+1).toFixed(1)}" pointer-events="none"`;
+        base+=`<image ${a} href="${TILE_HOSTS.base}/${z}/${x}/${y}.png"/>`;
+        sea +=`<image ${a} href="${TILE_HOSTS.sea}/${z}/${x}/${y}.png"/>`;
+      }
+      tiles=`<g class="tilebase">${base}</g><g>${sea}</g>`;
+    }
+  }
   const la0=Math.floor((MAP.cx-latSpan)*10)/10;
   for(let la=la0; la<MAP.cx+latSpan; la+=0.1){
     const [,y]=project(la,MAP.cy,vw,vh);
@@ -575,7 +601,7 @@ function drawChart(){
   /* north arrow */
   out+=`<g transform="translate(${vw-26} 34)"><path d="M0 -14 L5 6 L0 1 L-5 6 Z" fill="#cfe0ea"/><text x="0" y="20" class="mlbl" text-anchor="middle" style="fill:#cfe0ea">N</text></g>`;
 
-  svg.innerHTML=out;
+  svg.innerHTML=tiles+out;
   svg.querySelectorAll('.spot').forEach(el=>el.addEventListener('click',ev=>{
     selectSpot(+ev.target.getAttribute('data-id'));
   }));
