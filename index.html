@@ -161,6 +161,14 @@
   .tev .tk{flex:1;font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
   .tev .tk.high{color:var(--cyan)} .tev .tk.low{color:var(--amber)}
   .tev.past{opacity:.4}
+  .tscroll{max-height:44vh;overflow-y:auto;position:relative;-webkit-overflow-scrolling:touch}
+  .tday{position:sticky;top:0;z-index:1;background:var(--panel);border-bottom:1px solid var(--line);
+    padding:7px 12px 5px;font-family:var(--sans);font-size:11px;font-weight:700;
+    letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .tday.today{color:var(--cyan)}
+  .tnowline{display:flex;align-items:center;gap:8px;padding:5px 12px;
+    font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--green)}
+  .tnowline::before,.tnowline::after{content:"";flex:1;height:1px;background:var(--green);opacity:.5}
 
   /* ---- plan ---- */
   .leg{display:flex;align-items:center;gap:11px;padding:10px 12px}
@@ -913,14 +921,21 @@ function renderTides(){
           <div class="trend" style="color:var(--muted)">${cur.next.h.toFixed(2)} m · in ${fmtDur((cur.next.t-Date.now())/3600000)}</div></div>
       </div>`;
     }
-    // upcoming list
-    const now=Date.now();
-    html+=`<div class="card tlist">`+evs.filter(e=>e.t>now-3*3600000).slice(0,8).map(e=>{
+    // full multi-day list: grouped by local day, scrollable, with a NOW divider
+    const now=Date.now(), todayK=dayKey(now);
+    let rows='', lastK=null, nowPlaced=false;
+    const nowDivider=`<div class="tnowline" id="tnow">NOW</div>`;
+    evs.forEach(e=>{
+      if(!nowPlaced && e.t>now){ rows+=nowDivider; nowPlaced=true; }
+      const k=dayKey(e.t);
+      if(k!==lastK){ lastK=k; rows+=`<div class="tday${k===todayK?' today':''}">${fmtDay(e.t)}</div>`; }
       const past=e.t<now;
-      return `<div class="tev ${past?'past':''}"><div class="tt">${fmtClock(e.t)}</div>
+      rows+=`<div class="tev ${past?'past':''}"><div class="tt">${fmtClock(e.t)}</div>
         <div class="tk ${e.type}">${e.type==='high'?'High':'Low'}</div>
         <div class="th">${e.h.toFixed(2)} m</div></div>`;
-    }).join('')+`</div>`;
+    });
+    if(!nowPlaced) rows+=nowDivider;   // all events in the past -> divider at the end
+    html+=`<div class="card tlist tscroll" id="tscroll">${rows}</div>`;
     html+=`<div class="help" style="margin-top:8px">Heights are above chart datum (~LAT). Add to charted depths. Other anchorages differ from ${ref.name} by roughly −10 to +40 min — see a local tide table for exact offsets.</div>`;
   }
 
@@ -953,6 +968,8 @@ function renderTides(){
   const sel=document.getElementById('tref'); if(sel)sel.addEventListener('change',()=>{S.tides.ref=sel.value;store.set('tides',S.tides);renderTides();});
   const k=document.getElementById('wtkey'); if(k)k.addEventListener('change',()=>{S.wtkey=k.value.trim();store.set('wtkey',S.wtkey);});
   if(evs.length) drawTideCurve(evs);
+  const box=document.getElementById('tscroll'), nowEl=document.getElementById('tnow');
+  if(box&&nowEl) box.scrollTop=Math.max(0, nowEl.offsetTop - box.clientHeight*0.3);
 }
 function drawTideCurve(evs){
   const svg=document.getElementById('tidecurve'); if(!svg)return;
