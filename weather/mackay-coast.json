@@ -1,0 +1,43 @@
+{
+  "product": "IDQ11306",
+  "title": "Mackay Coast: Bowen to St Lawrence",
+  "attribution": "© Commonwealth of Australia, Bureau of Meteorology",
+  "history": [
+    {
+      "issued": "2026-07-07T15:00:00+10:00",
+      "fetched": "2026-07-07T05:30:00Z",
+      "synopsis": "A ridge extends over the north Queensland waters, weakening slightly on Thursday.",
+      "warning": null,
+      "periods": [
+        {
+          "label": "Tonight",
+          "winds": "Southeasterly 20 to 25 knots, reaching up to 30 knots offshore north of Hamilton Island during the afternoon and evening.",
+          "seas": "1 to 1.5 metres, increasing to 2 metres offshore.",
+          "swell": "Easterly below 1 metre inshore, increasing to 1 to 1.5 metres offshore.",
+          "weather": "Mostly clear. 60% chance of showers."
+        },
+        {
+          "label": "Wed 8 Jul",
+          "winds": "Southeasterly 20 to 25 knots.",
+          "seas": "1 to 1.5 metres, increasing to 1.5 to 2 metres offshore.",
+          "swell": "Easterly below 1 metre inshore, increasing to 1 to 1.5 metres offshore.",
+          "weather": "Partly cloudy. 80% chance of showers."
+        },
+        {
+          "label": "Thu 9 Jul",
+          "winds": "Southeasterly 15 to 20 knots.",
+          "seas": "1 to 1.5 metres.",
+          "swell": "Easterly 1 to 1.5 metres.",
+          "weather": "Partly cloudy. 70% chance of showers."
+        },
+        {
+          "label": "Fri 10 Jul",
+          "winds": "Southeasterly 15 to 20 knots.",
+          "seas": "Around 1 metre, increasing to 1 to 1.5 metres offshore north of Hamilton Island.",
+          "swell": "Easterly 1 to 1.5 metres offshore, decreasing to around 1 metre during the afternoon or evening.",
+          "weather": "Partly cloudy. 50% chance of showers."
+        }
+      ]
+    }
+  ]
+}

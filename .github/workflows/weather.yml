@@ -1,0 +1,66 @@
+name: Fetch marine weather
+
+# Downloads the BOM Mackay Coastal Waters forecast (IDQ11306), merges it into
+# weather/mackay-coast.json, and (only when it changed) commits + redeploys the site.
+# A GITHUB_TOKEN commit does not re-trigger deploy.yml, so this workflow deploys itself.
+
+on:
+  schedule:
+    - cron: '15 20 * * *'   # ~06:15 EST
+    - cron: '15 2 * * *'    # ~12:15 EST
+    - cron: '15 8 * * *'    # ~18:15 EST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Share the deploy concurrency group so this never clashes with deploy.yml.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  weather:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Fetch + merge forecast
+        id: fetch
+        run: |
+          python3 scripts/fetch_weather.py weather/mackay-coast.json
+          if git diff --quiet -- weather/mackay-coast.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit updated forecast
+        if: steps.fetch.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add weather/mackay-coast.json
+          git commit -m "chore(weather): update Mackay Coast forecast [skip ci]"
+          git push
+
+      - name: Configure Pages
+        if: steps.fetch.outputs.changed == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        if: steps.fetch.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy
+        id: deployment
+        if: steps.fetch.outputs.changed == 'true'
+        uses: actions/deploy-pages@v4
