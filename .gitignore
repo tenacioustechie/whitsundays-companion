@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# Python (from scripts/ tests)
+__pycache__/
+*.pyc
+
+# SDD scratch (git-ignored working notes for subagent-driven development)
+.superpowers/
