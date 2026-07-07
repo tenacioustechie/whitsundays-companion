@@ -314,6 +314,35 @@ const ORDER=['T','A','B','C','D'];
 
 /* ---------- compass helpers ---------- */
 const DIRDEG={N:0,NE:45,E:90,SE:135,S:180,SW:225,W:270,NW:315};
+/* ---- BOM marine-weather parsing/format helpers (Weather tab) ---- */
+const BOM_DIR={north:0,northeast:45,east:90,southeast:135,south:180,southwest:225,west:270,northwest:315};
+function _circMean(a,b){let d=b-a; if(Math.abs(d)>180) d-=Math.sign(d)*360; return ((a+d/2)%360+360)%360;}
+/* "Southeasterly 20 to 25 knots, reaching up to 30 knots offshore" -> {deg,deg8,knLow,knHigh}.
+   Direction from the leading clause (before the first digit); speed = first "X (to Y) knots".
+   "Variable" / unrecognised -> deg null. deg8 = nearest 8-point for chip highlighting. */
+function parseBomWind(text){
+  if(!text) return null;
+  const s=text.toLowerCase();
+  const head=s.split(/\d/)[0];
+  const toks=head.match(/northeast|northwest|southeast|southwest|north|south|east|west/g)||[];
+  let deg=null;
+  if(toks.length===1) deg=BOM_DIR[toks[0]];
+  else if(toks.length>=2) deg=_circMean(BOM_DIR[toks[0]],BOM_DIR[toks[toks.length-1]]);
+  let knLow=null,knHigh=null;
+  const m=s.match(/(\d+)\s*(?:to\s*(\d+))?\s*knots/);
+  if(m){knLow=+m[1]; knHigh=m[2]?+m[2]:+m[1];}
+  const deg8=deg==null?null:((Math.round(deg/45)*45)%360);
+  return {deg,deg8,knLow,knHigh};
+}
+/* Show a BOM local-EST ISO ("2026-07-07T15:00:00+10:00") as its stated wall-clock time. */
+function fmtIssued(iso){
+  const m=iso&&iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); if(!m) return iso||'';
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const mons=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d=new Date(+m[1],+m[2]-1,+m[3]); let h=+m[4]; const ap=h>=12?'pm':'am'; h=h%12||12;
+  return `${h}:${m[5]} ${ap} ${days[d.getDay()]} ${+m[3]} ${mons[+m[2]-1]}`;
+}
+function issueAgeHours(iso){const t=Date.parse(iso); return isNaN(t)?null:(Date.now()-t)/3.6e6;}
 function compass(deg){const p=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];return p[Math.round(((deg%360)/22.5))%16];}
 
 /* parse "E to SW" (clockwise arc), "All Weather", "Light…", "SE up to 15k" */
