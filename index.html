@@ -506,6 +506,27 @@ function lonToTileX(lon,z){ return Math.floor((lon+180)/360*Math.pow(2,z)); }
 function latToTileY(lat,z){ const r=lat*Math.PI/180; return Math.floor((1-Math.asinh(Math.tan(r))/Math.PI)/2*Math.pow(2,z)); }
 function tileXToLon(x,z){ return x/Math.pow(2,z)*360-180; }
 function tileYToLat(y,z){ return Math.atan(Math.sinh(Math.PI*(1-2*y/Math.pow(2,z))))*180/Math.PI; }
+const SVGNS='http://www.w3.org/2000/svg', XLINKNS='http://www.w3.org/1999/xlink';
+/* Reconcile a tile group's <image> children against `want` (Map: "z/x/y" -> {href,x,y,w,h}).
+   Tiles still needed are just repositioned in place, so their already-decoded bitmap keeps
+   painting; only genuinely new tiles are created (and briefly load). Recreating every tile
+   on every redraw is what made the whole layer flash to the dark background — the "flicker" —
+   which fired on a timer because each live GPS fix triggers a redraw. */
+function syncTiles(group,want){
+  for(const img of Array.from(group.children)){
+    const k=img.getAttribute('data-key'), t=want.get(k);
+    if(t){ img.setAttribute('x',t.x); img.setAttribute('y',t.y); img.setAttribute('width',t.w); img.setAttribute('height',t.h); want.delete(k); }
+    else group.removeChild(img);
+  }
+  want.forEach((t,k)=>{
+    const img=document.createElementNS(SVGNS,'image');
+    img.setAttribute('data-key',k);
+    img.setAttributeNS(XLINKNS,'href',t.href); img.setAttribute('href',t.href); // both, for older Safari
+    img.setAttribute('x',t.x); img.setAttribute('y',t.y); img.setAttribute('width',t.w); img.setAttribute('height',t.h);
+    img.setAttribute('preserveAspectRatio','none'); img.setAttribute('crossorigin','anonymous'); img.setAttribute('pointer-events','none');
+    group.appendChild(img);
+  });
+}
 function project(lat,lon,vw,vh){
   const midLat=MAP.cx, kx=Math.cos(midLat*Math.PI/180);
   const lonSpan=BASE_SPAN/MAP.zoom, latSpan=lonSpan*(vh/vw)/kx;
@@ -527,7 +548,7 @@ function drawChart(){
   svg.setAttribute('viewBox',`0 0 ${vw} ${vh}`);
   const kx=Math.cos(MAP.cx*Math.PI/180);
   const lonSpan=BASE_SPAN/MAP.zoom;
-  let out='', tiles='';
+  let out='';
   /* lat/lon grid every 0.1deg */
   const g0=Math.floor((MAP.cy-lonSpan)*10)/10;
   for(let lo=g0; lo<MAP.cy+lonSpan; lo+=0.1){
@@ -536,7 +557,10 @@ function drawChart(){
     out+=`<text x="${(x+3).toFixed(1)}" y="13" class="mlbl">${lo.toFixed(1)}°E</text>`;
   }
   const latSpan=lonSpan*(vh/vw)/kx;
-  /* ---- cached chart tile layer (drawn first, behind the schematic) ---- */
+  /* ---- cached chart tile layer (drawn first, behind the schematic) ----
+     Collect the tiles this view needs; syncTiles() later reconciles them into persistent
+     groups so unchanged tiles keep their bitmap instead of being recreated (and re-decoded). */
+  const wantBase=new Map(), wantSea=new Map();
   if(S.chartLayer){
     const z=tileZoom(lonSpan,vw), n=Math.pow(2,z);
     const west=MAP.cy-lonSpan/2, east=MAP.cy+lonSpan/2;
@@ -544,20 +568,20 @@ function drawChart(){
     const x0=lonToTileX(west,z), x1=lonToTileX(east,z);
     const y0=latToTileY(north,z), y1=latToTileY(south,z);
     if((x1-x0+1)*(y1-y0+1)<=400){          // backstop against a pathological range
-      let base='', sea='';
       for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
         if(x<0||x>=n||y<0||y>=n)continue;  // skip tiles outside the world (off-map panning)
         const[xL,yT]=project(tileYToLat(y,z),tileXToLon(x,z),vw,vh);
         const[xR,yB]=project(tileYToLat(y+1,z),tileXToLon(x+1,z),vw,vh);
-        const a=`x="${xL.toFixed(1)}" y="${yT.toFixed(1)}" width="${(xR-xL+1).toFixed(1)}" height="${(yB-yT+1).toFixed(1)}" preserveAspectRatio="none" crossorigin="anonymous" pointer-events="none"`;
-        base+=`<image ${a} href="${TILE_HOSTS.base}/${z}/${x}/${y}.png"/>`;
-        sea +=`<image ${a} href="${TILE_HOSTS.sea}/${z}/${x}/${y}.png"/>`;
+        const key=z+'/'+x+'/'+y;
+        const g={x:xL.toFixed(1),y:yT.toFixed(1),w:(xR-xL+1).toFixed(1),h:(yB-yT+1).toFixed(1)};
+        wantBase.set(key,{...g,href:`${TILE_HOSTS.base}/${z}/${x}/${y}.png`});
+        wantSea .set(key,{...g,href:`${TILE_HOSTS.sea}/${z}/${x}/${y}.png`});
       }
-      tiles=`<g class="tilebase">${base}</g><g>${sea}</g>`;
     }
   }
+  const hasTiles=wantBase.size>0;
   /* attribution tracks actual tiles, not just the toggle (stays hidden if the backstop blanks them) */
-  const cap=document.getElementById('chartcap'); if(cap)cap.style.display=tiles?'block':'none';
+  const cap=document.getElementById('chartcap'); if(cap)cap.style.display=hasTiles?'block':'none';
   const la0=Math.floor((MAP.cx-latSpan)*10)/10;
   for(let la=la0; la<MAP.cx+latSpan; la+=0.1){
     const [,y]=project(la,MAP.cy,vw,vh);
@@ -613,8 +637,16 @@ function drawChart(){
   /* north arrow */
   out+=`<g transform="translate(${vw-26} 34)"><path d="M0 -14 L5 6 L0 1 L-5 6 Z" fill="#cfe0ea"/><text x="0" y="20" class="mlbl" text-anchor="middle" style="fill:#cfe0ea">N</text></g>`;
 
-  svg.innerHTML=tiles+out;
-  svg.querySelectorAll('.spot').forEach(el=>el.addEventListener('click',ev=>{
+  /* Persistent layers: reconcile the tile groups in place (no destroy/recreate → no flash),
+     and rebuild only the vector overlay (cheap; vectors paint synchronously, they don't flicker). */
+  let tlBase=svg.querySelector('#tlBase'), tlSea=svg.querySelector('#tlSea'), tlOver=svg.querySelector('#tlOver');
+  if(!tlOver){
+    svg.innerHTML='<g id="tlBase" class="tilebase"></g><g id="tlSea"></g><g id="tlOver"></g>';
+    tlBase=svg.querySelector('#tlBase'); tlSea=svg.querySelector('#tlSea'); tlOver=svg.querySelector('#tlOver');
+  }
+  syncTiles(tlBase,wantBase); syncTiles(tlSea,wantSea);
+  tlOver.innerHTML=out;
+  tlOver.querySelectorAll('.spot').forEach(el=>el.addEventListener('click',ev=>{
     selectSpot(+ev.target.getAttribute('data-id'));
   }));
 }
