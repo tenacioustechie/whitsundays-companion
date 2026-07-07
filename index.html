@@ -1250,7 +1250,8 @@ function renderSet(){
       <label class="fld">Wind from</label>
       <div class="chips" style="margin-bottom:4px">${dirs.map(d=>`<button class="chip ${S.windDir===DIRDEG[d]?'on':''}" onclick="setWind('${d}')">${d}</button>`).join('')}</div>
       <label class="fld">Strength (kn)</label><input id="s-wind" type="number" inputmode="decimal" value="${S.windKn}">
-      <div class="help">Drives the “Protected / Exposed tonight” verdict and the compass rose on each spot. Get the forecast from BOM Coastal Waters (Mackay) or your weather app while in range.</div>
+      ${windSourceNote()}
+      <div class=”help”>Drives the “Protected / Exposed tonight” verdict and the compass rose on each spot. Auto-filled from the BOM Mackay Coastal Waters forecast (see the Weather tab); change it here to override until the next forecast.</div>
     </div>
 
     <h2 class="sect">Location</h2>
@@ -1277,9 +1278,21 @@ function renderSet(){
   el.querySelector('#s-len').addEventListener('change',e=>{S.boatLen=+e.target.value||12;store.set('boatLen',S.boatLen);});
   el.querySelector('#s-hull').addEventListener('change',e=>{S.boatHull=e.target.value;store.set('boatHull',S.boatHull);});
   el.querySelector('#s-spd').addEventListener('change',e=>{S.speed=+e.target.value||6;store.set('speed',S.speed);});
-  el.querySelector('#s-wind').addEventListener('change',e=>{S.windKn=+e.target.value||0;store.set('windKn',S.windKn);});
+  el.querySelector('#s-wind').addEventListener('change',e=>{S.windKn=+e.target.value||0;S.windManualSince=isoDate(Date.now());store.set('windKn',S.windKn);store.set('windManualSince',S.windManualSince);renderSet();});
 }
-function setWind(d){S.windDir=DIRDEG[d];store.set('windDir',S.windDir);renderSet();}
+function setWind(d){S.windDir=DIRDEG[d];S.windManualSince=isoDate(Date.now());store.set('windDir',S.windDir);store.set('windManualSince',S.windManualSince);renderSet();}
+
+/* One-line note under the Setup wind card: where the current wind came from. */
+function windSourceNote(){
+  const h=S.weather&&S.weather.history&&S.weather.history[0]; if(!h) return '';
+  const w=h.periods&&h.periods[0]&&parseBomWind(h.periods[0].winds);
+  const fc=(w&&w.deg8!=null&&w.knHigh!=null)?`${compass(w.deg8)} ${w.knLow&&w.knLow!==w.knHigh?w.knLow+'–':''}${w.knHigh}kn`:'—';
+  const when=fmtIssued(h.issued);
+  if(S.windManualSince) return `<div class="help" style="color:var(--amber)">Manually set. Latest BOM forecast (${when}): <b>${fc}</b> · <a href="#" onclick="resetWind();return false" style="color:var(--cyan)">reset to forecast</a></div>`;
+  if(S.windFromForecast===h.issued) return `<div class="help" style="color:var(--green)">From BOM forecast, issued ${when}.</div>`;
+  return '';
+}
+function resetWind(){applyForecastWind(true); renderSet(); toast('Wind set from latest BOM forecast');}
 
 /* ============================================================
    NAV / VIEW SWITCH
