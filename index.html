@@ -1210,7 +1210,7 @@ function renderWeather(){
   const H=wx.history, latest=H[0];
   const ageH=issueAgeHours(latest.issued), stale=ageH!=null&&ageH>18;
   let html=`<div class="wx-head"><b>${wx.title||'Coastal Waters Forecast'}</b><br><span class="mono">Issued ${fmtIssued(latest.issued)}</span></div>`;
-  if(stale) html+=`<div class="banner">Forecast is ${(ageH/24).toFixed(1)} day(s) old — may be out of date. Reconnect to refresh.</div>`;
+  if(stale) html+=`<div class="banner">Forecast is ${ageH<48?Math.round(ageH)+' h':Math.round(ageH/24)+' days'} old — may be out of date. Reconnect to refresh.</div>`;
   if(latest.warning) html+=`<div class="banner" style="background:rgba(239,106,90,.14);border-color:rgba(239,106,90,.5);color:var(--red)"><b>${latest.warning}</b></div>`;
   if(latest.synopsis) html+=`<div class="wx-syn">${latest.synopsis}</div>`;
   html+=latest.periods.map((p,i)=>periodCard(p,i===0,i===0?windChange(latest,H[1]):'')).join('');
@@ -1251,7 +1251,7 @@ function renderSet(){
       <div class="chips" style="margin-bottom:4px">${dirs.map(d=>`<button class="chip ${S.windDir===DIRDEG[d]?'on':''}" onclick="setWind('${d}')">${d}</button>`).join('')}</div>
       <label class="fld">Strength (kn)</label><input id="s-wind" type="number" inputmode="decimal" value="${S.windKn}">
       ${windSourceNote()}
-      <div class=”help”>Drives the “Protected / Exposed tonight” verdict and the compass rose on each spot. Auto-filled from the BOM Mackay Coastal Waters forecast (see the Weather tab); change it here to override until the next forecast.</div>
+      <div class="help">Drives the “Protected / Exposed tonight” verdict and the compass rose on each spot. Auto-filled from the BOM Mackay Coastal Waters forecast (see the Weather tab); change it here to override until the next forecast.</div>
     </div>
 
     <h2 class="sect">Location</h2>
@@ -1288,7 +1288,7 @@ function windSourceNote(){
   const w=h.periods&&h.periods[0]&&parseBomWind(h.periods[0].winds);
   const fc=(w&&w.deg8!=null&&w.knHigh!=null)?`${compass(w.deg8)} ${w.knLow&&w.knLow!==w.knHigh?w.knLow+'–':''}${w.knHigh}kn`:'—';
   const when=fmtIssued(h.issued);
-  if(S.windManualSince) return `<div class="help" style="color:var(--amber)">Manually set. Latest BOM forecast (${when}): <b>${fc}</b> · <a href="#" onclick="resetWind();return false" style="color:var(--cyan)">reset to forecast</a></div>`;
+  if(S.windManualSince) return `<div class="help" style="color:var(--amber)">Manually set. Latest BOM forecast (${when}): <b class="mono">${fc}</b> · <a href="#" onclick="resetWind();return false" style="color:var(--cyan)">reset to forecast</a></div>`;
   if(S.windFromForecast===h.issued) return `<div class="help" style="color:var(--green)">From BOM forecast, issued ${when}.</div>`;
   return '';
 }

@@ -31,7 +31,7 @@ It runs on family phones/iPads with **no mobile signal** out among the islands.
 
 | File | Role |
 |---|---|
-| `index.html` | The entire app. Structure: `<head>` meta/PWA tags → `<style>` (CSS vars + components) → markup (top fix bar, 5 `.view` panels, bottom `.tab` bar, map sheet) → `<script>` (all logic). |
+| `index.html` | The entire app. Structure: `<head>` meta/PWA tags → `<style>` (CSS vars + components) → markup (top fix bar, 6 `.view` panels, bottom `.tab` bar, map sheet) → `<script>` (all logic). |
 | `sw.js` | Service worker. Stale-while-revalidate over the app shell; ignores cross-origin (tide API). Bump `CACHE` to force-refresh devices. |
 | `manifest.json` | PWA manifest, relative paths. |
 | `icon-*.png` | Home-screen / manifest icons. Regenerate via `make_icon.py` if the brand changes. |
