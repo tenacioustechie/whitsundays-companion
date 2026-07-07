@@ -196,6 +196,20 @@
   .banner{background:rgba(242,180,65,.12);border:1px solid rgba(242,180,65,.35);color:#f6d18a;
     border-radius:11px;padding:10px 12px;font-size:12px;margin-bottom:11px;line-height:1.5}
   .banner b{color:var(--amber)}
+  /* ---- weather ---- */
+  #weatherbody{padding:12px 12px 90px}
+  .wx-head{margin:2px 2px 10px;font-size:15px;line-height:1.4;color:var(--ink)}
+  .wx-syn{color:var(--muted);font-size:13px;line-height:1.5;margin:0 2px 12px}
+  .wx-card{padding:12px}
+  .wx-tonight{border-color:var(--cyan)}
+  .wx-when{font-weight:700;font-size:13px;margin-bottom:7px;color:var(--ink)}
+  .wx-chg{color:var(--amber);font-weight:600}
+  .wx-row{display:flex;gap:8px;font-size:12.5px;line-height:1.45;padding:2px 0}
+  .wx-lbl{flex:0 0 52px;color:var(--muted2);font-weight:600}
+  .wx-val{flex:1;color:var(--ink)}
+  .wx-hist{margin-bottom:8px;border:1px solid var(--line);border-radius:11px;padding:9px 11px;background:var(--panel)}
+  .wx-hist>summary{cursor:pointer;font-size:12.5px;color:var(--muted);list-style:none}
+  .wx-hist>summary::-webkit-details-marker{display:none}
   .toast{position:fixed;left:50%;bottom:calc(var(--safe-b) + 78px);transform:translateX(-50%) translateY(20px);
     background:#0c2030;border:1px solid var(--line);color:var(--ink);padding:11px 16px;border-radius:11px;
     font-size:13px;opacity:0;transition:.25s;z-index:50;pointer-events:none;max-width:90%;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -245,6 +259,11 @@
     <div id="tidebody"></div>
   </div>
 
+  <!-- WEATHER -->
+  <div class="view" id="view-weather">
+    <div id="weatherbody"></div>
+  </div>
+
   <!-- PLAN -->
   <div class="view" id="view-plan">
     <div id="planbody"></div>
@@ -269,6 +288,10 @@
   <button class="tab" data-v="tides">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3"/><path d="M2 19c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-3 5-3 2.5 3 5 3"/></svg>
     <span>Tides</span>
+  </button>
+  <button class="tab" data-v="weather">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 19a3.5 3.5 0 1 0 0-7H2"/><path d="M13 5a3.5 3.5 0 1 1 3 5H2"/><path d="M17.5 14a3 3 0 1 1 2 5H2"/></svg>
+    <span>Weather</span>
   </button>
   <button class="tab" data-v="plan">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="5" r="2.4"/><path d="M7.6 17.4 16.4 6.6"/><path d="M6 16.6V11a4 4 0 0 1 4-4h2"/></svg>
@@ -1154,6 +1177,56 @@ function applyForecastWind(force){
 }
 
 /* ============================================================
+   WEATHER (BOM Mackay Coastal Waters)
+   ============================================================ */
+function wxRow(label,val){return `<div class="wx-row"><span class="wx-lbl">${label}</span><span class="wx-val">${val||'—'}</span></div>`;}
+function wxHead(p){const w=parseBomWind(p.winds); if(!w||w.deg8==null) return '';
+  const rng=w.knLow&&w.knLow!==w.knHigh?w.knLow+'–':''; const kn=w.knHigh!=null?rng+w.knHigh+'kn':'';
+  return `${compass(w.deg8)} ${kn}`.trim();}
+function periodCard(p,isTonight,chg){
+  const head=wxHead(p);
+  return `<div class="card wx-card${isTonight?' wx-tonight':''}">
+    <div class="wx-when">${isTonight?'Tonight':p.label}${head?` · <span class="mono" style="color:var(--amber)">${head}</span>`:''}${chg?` <span class="wx-chg">${chg}</span>`:''}</div>
+    ${wxRow('Wind',p.winds)}${wxRow('Seas',p.seas)}${wxRow('Swell',p.swell)}${wxRow('Weather',p.weather)}
+  </div>`;
+}
+/* Change in the Tonight headline wind between an issue and the previous one. */
+function windChange(cur,prev){
+  if(!prev) return '';
+  const a=cur.periods&&cur.periods[0]&&parseBomWind(cur.periods[0].winds);
+  const b=prev.periods&&prev.periods[0]&&parseBomWind(prev.periods[0].winds);
+  if(!a||!b||a.deg8==null||b.deg8==null) return '';
+  if(a.deg8!==b.deg8) return `↻ was ${compass(b.deg8)}${b.knHigh!=null?' '+b.knHigh+'kn':''}`;
+  if(a.knHigh!=null&&b.knHigh!=null&&a.knHigh!==b.knHigh) return `${a.knHigh>b.knHigh?'↑':'↓'} was ${b.knHigh}kn`;
+  return '';
+}
+function renderWeather(){
+  const el=document.getElementById('weatherbody');
+  const wx=S.weather;
+  if(!wx||!wx.history||!wx.history.length){
+    el.innerHTML=`<div class="banner">No forecast cached yet. Connect to the internet while in range and reopen this tab — the daily BOM Mackay Coastal Waters forecast downloads once and then stays available offline.</div>`;
+    return;
+  }
+  const H=wx.history, latest=H[0];
+  const ageH=issueAgeHours(latest.issued), stale=ageH!=null&&ageH>18;
+  let html=`<div class="wx-head"><b>${wx.title||'Coastal Waters Forecast'}</b><br><span class="mono">Issued ${fmtIssued(latest.issued)}</span></div>`;
+  if(stale) html+=`<div class="banner">Forecast is ${(ageH/24).toFixed(1)} day(s) old — may be out of date. Reconnect to refresh.</div>`;
+  if(latest.warning) html+=`<div class="banner" style="background:rgba(239,106,90,.14);border-color:rgba(239,106,90,.5);color:var(--red)"><b>${latest.warning}</b></div>`;
+  if(latest.synopsis) html+=`<div class="wx-syn">${latest.synopsis}</div>`;
+  html+=latest.periods.map((p,i)=>periodCard(p,i===0,i===0?windChange(latest,H[1]):'')).join('');
+  if(H.length>1){
+    html+=`<h2 class="sect">Earlier issues</h2>`;
+    html+=H.slice(1).map((h,i)=>{
+      const chg=windChange(h,H[i+2]); const head=wxHead(h.periods[0])||'—';
+      return `<details class="wx-hist"><summary><span class="mono">${fmtIssued(h.issued)}</span> — Tonight ${head}${chg?` <span class="wx-chg">${chg}</span>`:''}</summary>
+        ${h.periods.map(p=>periodCard(p,false,'')).join('')}</details>`;
+    }).join('');
+  }
+  html+=`<div class="help" style="margin-top:14px">${wx.attribution||'© Bureau of Meteorology'} · Forecast for planning only — <b>not for navigation</b>. Verify current conditions before you commit to an inlet or a lee shore.</div>`;
+  el.innerHTML=html;
+}
+
+/* ============================================================
    SETTINGS
    ============================================================ */
 function renderSet(){
@@ -1219,6 +1292,7 @@ function setView(v){
   if(v==='map'){ if(!MAP.fitted)fitChart(); else drawChart(); }
   if(v==='near')renderNear();
   if(v==='tides')renderTides();
+  if(v==='weather')renderWeather();
   if(v==='plan')renderPlan();
   if(v==='set')renderSet();
 }
