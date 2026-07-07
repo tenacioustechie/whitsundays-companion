@@ -466,6 +466,9 @@ const S={
   speed:store.get('speed',6),
   windDir:store.get('windDir',135),   // forecast wind FROM (deg)
   windKn:store.get('windKn',15),
+  weather:store.get('weather',null),                       // cached BOM forecast JSON (offline fallback)
+  windFromForecast:store.get('windFromForecast',null),     // BOM issue-time last auto-applied
+  windManualSince:store.get('windManualSince',null),       // set when the user overrides wind
   filt:store.get('filt',{type:'all',fits:false,protOnly:false,showDay:false}),
   selected:null,
   route:store.get('route',[]),
@@ -1121,6 +1124,34 @@ async function fetchTides(days){
     toast('Fetch failed (no signal / blocked). Use manual entry below.');
   }
 }
+/* Load the same-origin BOM forecast JSON (service-worker cached; never calls BOM directly).
+   Keeps the last good copy in localStorage so it survives offline. */
+async function fetchWeather(){
+  try{
+    const r=await fetch('weather/mackay-coast.json');
+    if(!r.ok) return;
+    const j=await r.json();
+    if(!j||!Array.isArray(j.history)) return;
+    S.weather=j; store.set('weather',j);
+    applyForecastWind(false);
+    if(S.view==='weather')renderWeather();
+    if(S.view==='set')renderSet();
+  }catch(e){/* offline or missing — keep cached S.weather */}
+}
+/* Apply the latest issue's Tonight wind to the Protected/Exposed inputs.
+   Auto (force=false): only on a NEWER issue than last applied (a manual override then
+   sticks until the next issue). force=true: "reset to forecast" re-applies now. */
+function applyForecastWind(force){
+  const h=S.weather&&S.weather.history&&S.weather.history[0]; if(!h) return;
+  const tonight=h.periods&&h.periods[0]; if(!tonight) return;
+  const w=parseBomWind(tonight.winds); if(!w||w.deg8==null||w.knHigh==null) return;
+  if(!force && S.windFromForecast===h.issued) return;   // already applied this issue
+  S.windDir=w.deg8; S.windKn=w.knHigh;
+  S.windFromForecast=h.issued; S.windManualSince=null;
+  store.set('windDir',S.windDir); store.set('windKn',S.windKn);
+  store.set('windFromForecast',S.windFromForecast); store.set('windManualSince',S.windManualSince);
+  if(S.selected)renderSheet(); if(S.view==='near')renderNear(); if(S.view==='map')drawChart();
+}
 
 /* ============================================================
    SETTINGS
@@ -1213,6 +1244,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   // sheet handle to close
   document.querySelector('.sheethandle').addEventListener('click',closeSheet);
   renderFix();
+  applyForecastWind(false);   // apply from cached S.weather (offline-safe) before network
+  fetchWeather();             // refresh in the background; SW serves cached instantly
   setView('map');
   window.addEventListener('resize',()=>{if(S.view==='map')drawChart();});
   // try to start GPS quietly (will prompt for permission)
