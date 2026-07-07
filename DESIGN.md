@@ -105,6 +105,15 @@ totals (nm + ETA at planning speed). A quick "can we get round the islands this 
 WorldTides pre-fetch, and the manual paste box. Reference ports: Hamilton Island, Shute Harbour,
 Mackay.
 
+**Marine weather tab** — rolling BOM Mackay Coastal Waters forecast (product `IDQ11306`, covers
+the Whitsundays). BOM has no CORS headers so the fetch runs server-side: a CI workflow
+(~3×/day) fetches, parses and commits `weather/mackay-coast.json` (last 20 issues). The app
+reads this same-origin file, which the service worker precaches for offline use. On load the app
+auto-populates tonight's wind in Setup (upper of the forecast range) unless the user has set a
+manual override; "reset to forecast" restores it. The history panel flags period-to-period wind
+changes. Future enhancement: pull the separate coastal-waters Strong Wind Warning product
+(`IDQ20885`) and surface it as a caution banner.
+
 ---
 
 ## Data

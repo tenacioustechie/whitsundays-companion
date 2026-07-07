@@ -10,7 +10,7 @@
  * Bump CACHE (e.g. wts-v2) whenever you want to force every device to discard
  * the old cached copy on next online launch.
  */
-const CACHE = 'wts-v5';
+const CACHE = 'wts-v6';
 const TILES = 'wts-tiles';                       // chart-layer tiles, kept across shell upgrades
 const TILE_HOSTS = ['tile.openstreetmap.org', 'tiles.openseamap.org']; // keep in sync with TILE_HOSTS in index.html
 const MAX_TILES = 1200;                           // cap the tile cache so it can't crowd out the app shell
@@ -21,6 +21,7 @@ const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './weather/mackay-coast.json',
   './icon-180.png',
   './icon-192.png',
   './icon-512.png'

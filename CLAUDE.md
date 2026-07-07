@@ -18,8 +18,9 @@ It runs on family phones/iPads with **no mobile signal** out among the islands.
    with the network completely off. If you're tempted to add a library, inline it or don't.
 2. **Stay offline-capable.** The only network calls allowed are the optional WorldTides
    fetch (explicitly user-triggered), the optional chart-layer map tiles (OSM base +
-   OpenSeaMap seamarks, cached-as-you-browse for offline use), and the service worker's
-   background cache refresh.
+   OpenSeaMap seamarks, cached-as-you-browse for offline use), the service worker's
+   background cache refresh, and the same-origin `weather/mackay-coast.json` fetch (served
+   from the SW precache; the browser never contacts BOM directly — CI does that).
    Every feature must work fully offline. If a feature needs data, it gets pre-fetched while
    online or entered manually.
 3. **Never present coordinates as navigation-grade.** Spot positions are approximate. Keep
@@ -35,6 +36,9 @@ It runs on family phones/iPads with **no mobile signal** out among the islands.
 | `manifest.json` | PWA manifest, relative paths. |
 | `icon-*.png` | Home-screen / manifest icons. Regenerate via `make_icon.py` if the brand changes. |
 | `DESIGN.md` | Build decisions, data model, feature notes, future ideas. |
+| `weather/mackay-coast.json` | Rolling BOM Mackay Coastal Waters forecast history (last 20 issues), fetched by CI. Same-origin, SW-cached, offline. |
+| `scripts/fetch_weather.py` | CI-only: fetches/parses `IDQ11306.xml` and merges into the JSON above. Stdlib Python. Not loaded by the app. |
+| `.github/workflows/weather.yml` | Scheduled (cron ~3×/day) BOM fetch → commit JSON → redeploy. |
 
 ## How to run / test
 
@@ -70,6 +74,7 @@ It runs on family phones/iPads with **no mobile signal** out among the islands.
   totals + ETA.
 - **Tides tab:** `tideEvents`, `tideNow` (cosine interp between extremes), `renderTides`,
   `drawTideCurve`, `saveManual` (paste-table parser), `fetchTides(days)` (WorldTides).
+- **Weather tab:** `parseBomWind(text)` → `{deg,deg8,knLow,knHigh}`; `fmtIssued`/`issueAgeHours`; `fetchWeather()` loads the same-origin JSON; `applyForecastWind(force)` sets `S.windDir/S.windKn` from tonight's forecast (auto unless manually overridden; force re-applies); `renderWeather`, `periodCard`, `windChange` (history change flags); Setup `windSourceNote`/`resetWind`.
 - **Views:** `setView(v)` switches the 5 panels and calls the matching render fn.
 
 ## Data model
